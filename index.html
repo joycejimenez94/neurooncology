@@ -46,7 +46,10 @@
       <div class="controls">
         <input type="date" id="start" required
                min="1900-01-01" max="2100-12-01">
-        <button type="submit">Calculate dates</button>
+<label for="cycle">Current cycle number</label>
+<input type="number" id="cycle" min="1" max="99"
+       step="1" value="1" required>
+<button type="submit">Calculate dates</button>      
       </div>
     </form>
 
@@ -82,10 +85,13 @@
 
 <script>
 const start = document.getElementById("start");
+const cycle = document.getElementById("cycle");
 const result = document.getElementById("result");
 
-start.addEventListener("input", () => {
-  result.replaceChildren();
+[start, cycle].forEach(input => {
+  input.addEventListener("input", () => {
+    result.replaceChildren();
+  });
 });
 
 document.getElementById("calculator").addEventListener("submit", event => {
@@ -93,31 +99,64 @@ document.getElementById("calculator").addEventListener("submit", event => {
   result.replaceChildren();
 
   const day1 = new Date(start.value + "T12:00:00Z");
-  if (Number.isNaN(day1.getTime())) return;
+  const cycleNumber = Number(cycle.value);
+
+  if (
+    Number.isNaN(day1.getTime()) ||
+    !Number.isInteger(cycleNumber) ||
+    cycleNumber < 1 ||
+    cycleNumber > 99
+  ) return;
 
   function dateAfter(days) {
     const date = new Date(day1);
     date.setUTCDate(date.getUTCDate() + days);
     return new Intl.DateTimeFormat("en-US", {
-      weekday: "short", month: "short",
-      day: "numeric", year: "numeric", timeZone: "UTC"
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      timeZone: "UTC"
     }).format(date);
   }
 
-  const dates = [
-    ["Current cycle — Day 5", 4],
-    ["Day 22 — CBC with differential", 21],
-    ["Next cycle — planned Day 1", 28],
-    ["Next cycle — planned Day 5", 32]
-  ];
+  const note = document.createElement("p");
+  note.textContent =
+    "Current cycle and three potential future cycles, assuming no delays. " +
+    "This projection does not determine treatment duration. " +
+    "Each cycle requires laboratory review and treating-team clearance.";
+  result.append(note);
 
-  for (const [label, offset] of dates) {
-    const paragraph = document.createElement("p");
-    const heading = document.createElement("strong");
-    heading.textContent = label + ": ";
-    paragraph.append(heading, dateAfter(offset));
-    result.append(paragraph);
+  for (let i = 0; i < 4; i++) {
+    const offset = i * 28;
+
+    const heading = document.createElement("h3");
+    heading.textContent =
+      "Cycle " + (cycleNumber + i) +
+      (i === 0 ? " — current" : " — projected");
+    result.append(heading);
+
+    const dates = [
+      ["Day 1 — start", offset],
+      ["Day 5 — last scheduled dose", offset + 4],
+      ["Day 22 — CBC with differential", offset + 21]
+    ];
+
+    for (const [label, days] of dates) {
+      const paragraph = document.createElement("p");
+      const bold = document.createElement("strong");
+      bold.textContent = label + ": ";
+      paragraph.append(bold, dateAfter(days));
+      result.append(paragraph);
+    }
   }
+
+  const reminder = document.createElement("p");
+  reminder.className = "note";
+  reminder.textContent =
+    "If a cycle is delayed, enter that cycle’s actual start date " +
+    "and cycle number to recalculate subsequent dates.";
+  result.append(reminder);
 });
 </script>
 </body>
