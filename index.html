@@ -234,6 +234,333 @@
   });
 })();
 </script>
+ <section>
+  <h2>Temozolomide toxicity review</h2>
+
+  <p>
+    Educational label-based prototype for clinicians.
+    Covers concurrent treatment and review before a subsequent
+    adjuvant cycle. Not for initial treatment clearance,
+    dose escalation, or deciding whether to complete remaining
+    doses of an interrupted adjuvant cycle.
+  </p>
+
+  <p>
+    Enter counts in ×10⁹/L:
+    ANC 1.5 means 1,500/µL; platelets 100 means 100,000/µL.
+    Use ANC, not total WBC.
+  </p>
+
+  <form id="tmz-review-form"></form>
+  <div id="tmz-review-result" aria-live="polite"></div>
+
+  <p class="note">
+    For concurrent treatment, use the lowest counts and worst
+    toxicity during the current concurrent course.
+    For adjuvant treatment, use the cycle being reviewed.
+    Include the current assessment in those extrema.
+  </p>
+
+  <p class="note">
+    Liver toxicity must be graded by a clinician using baseline
+    values, laboratory reference ranges, and the applicable CTCAE
+    version. Include other relevant nonhematologic toxicity;
+    exclude alopecia, nausea, and vomiting from these label rules.
+    Unknown grades or incomplete nadir information prevent assessment.
+  </p>
+
+  <p class="note">
+    This tool does not issue treatment clearance. Symptoms,
+    infection, bleeding, suspected liver injury, prior permanent
+    discontinuation decisions, and institutional protocols can
+    override these limited criteria. No inputs are saved or
+    transmitted by this calculator.
+  </p>
+
+  <a href="https://www.merck.com/product/usa/pi_circulars/t/temodar_capsules/temodar_pi.pdf"
+     target="_blank" rel="noopener noreferrer">
+    Source: TEMODAR prescribing information, February 2026,
+    sections 2.1–2.3 and 5.2
+  </a>
+</section>
+
+<style>
+  #tmz-review-form label {
+    display: block;
+    margin-top: 16px;
+  }
+  #tmz-review-form input,
+  #tmz-review-form select {
+    width: 100%;
+    padding: 12px;
+    font: inherit;
+    color: #203f3b;
+    background: white;
+    border: 1px solid #9fb5a9;
+    border-radius: 8px;
+  }
+  #tmz-review-form button { margin-top: 20px; }
+  #tmz-review-result:not(:empty) {
+    margin-top: 24px;
+    padding: 20px;
+    border: 2px solid #8d7951;
+    border-radius: 12px;
+    background: #fffaf0;
+  }
+</style>
+
+<script>
+(() => {
+  const form = document.getElementById("tmz-review-form");
+  const out = document.getElementById("tmz-review-result");
+  const fields = {};
+  const wrappers = {};
+
+  function field(key, label, choices, max) {
+    const wrapper = document.createElement("div");
+    const title = document.createElement("label");
+    const input = document.createElement(choices ? "select" : "input");
+
+    input.id = "tmzr-" + key;
+    title.htmlFor = input.id;
+    title.textContent = label;
+    input.required = true;
+
+    if (choices) {
+      const blank = document.createElement("option");
+      blank.value = "";
+      blank.textContent = "Select / not yet assessed";
+      input.append(blank);
+
+      for (const [value, text] of choices) {
+        const option = document.createElement("option");
+        option.value = value;
+        option.textContent = text;
+        input.append(option);
+      }
+    } else {
+      input.type = "number";
+      input.min = "0";
+      input.max = String(max);
+      input.step = "any";
+    }
+
+    wrapper.append(title, input);
+    form.append(wrapper);
+    fields[key] = input;
+    wrappers[key] = wrapper;
+  }
+
+  const yesNo = [["no", "No"], ["yes", "Yes"]];
+  const grades = [
+    ["0", "0 — No relevant toxicity"],
+    ["1", "Grade 1"],
+    ["2", "Grade 2"],
+    ["3", "Grade 3"],
+    ["4", "Grade 4"]
+  ];
+
+  field("phase", "Treatment setting", [
+    ["rt", "Concurrent chemoradiation"],
+    ["adj", "Before a subsequent adjuvant cycle"]
+  ]);
+
+  field("a", "Current ANC (×10⁹/L)", null, 100);
+  field("p", "Current platelets (×10⁹/L)", null, 3000);
+  field("na", "Lowest ANC in reviewed course/cycle (×10⁹/L)", null, 100);
+  field("np", "Lowest platelets in reviewed course/cycle (×10⁹/L)", null, 3000);
+
+  field(
+    "g",
+    "Current highest relevant nonhematologic grade, including liver toxicity",
+    grades
+  );
+
+  field(
+    "w",
+    "Worst relevant nonhematologic grade in reviewed course/cycle",
+    grades
+  );
+
+  field("liver", "Unresolved concern for significant drug-induced liver injury?", yesNo);
+
+  field("dose", "Dose used in the adjuvant cycle being reviewed", [
+    ["100", "100 mg/m²/day"],
+    ["150", "150 mg/m²/day"],
+    ["200", "200 mg/m²/day"]
+  ]);
+
+  field(
+    "held",
+    "Was adjuvant TMZ withheld for treatment-related toxicity in this cycle?",
+    yesNo
+  );
+
+  field(
+    "recur",
+    "Did grade 3 nonhematologic toxicity recur after a prior dose reduction?",
+    yesNo
+  );
+
+  const button = document.createElement("button");
+  button.type = "submit";
+  button.textContent = "Review label criteria";
+  form.append(button);
+
+  function updatePhase() {
+    const adjuvant = fields.phase.value === "adj";
+    for (const key of ["dose", "held", "recur"]) {
+      wrappers[key].hidden = !adjuvant;
+      fields[key].disabled = !adjuvant;
+      fields[key].required = adjuvant;
+    }
+  }
+
+  fields.phase.addEventListener("change", updatePhase);
+  form.addEventListener("input", () => out.replaceChildren());
+  form.addEventListener("change", () => out.replaceChildren());
+  updatePhase();
+
+  function assess(x) {
+    const {phase, a, p, na, np, g, w, recur, held, dose} = x;
+    const reasons = [];
+
+    if (phase === "rt") {
+      if (na < 0.5) reasons.push("ANC nadir <0.5.");
+      if (np < 10) reasons.push("Platelet nadir <10.");
+      if (w >= 3) reasons.push("Grade 3–4 nonhematologic toxicity.");
+
+      if (reasons.length) {
+        return {status: "DISCONTINUATION CRITERION", reasons};
+      }
+
+      if (a < 1.5) reasons.push("Current ANC <1.5.");
+      if (p < 100) reasons.push("Current platelets <100.");
+      if (g >= 2) reasons.push("Current grade 2 nonhematologic toxicity.");
+
+      return {
+        status: reasons.length
+          ? "HOLD"
+          : "NO ENTERED TABLE-1 HOLD CRITERION",
+        reasons
+      };
+    }
+
+    if (w === 4) reasons.push("Grade 4 nonhematologic toxicity.");
+    if (recur) {
+      reasons.push("Recurrent grade 3 toxicity after dose reduction.");
+    }
+
+    const reduce = na < 1 || np < 50 || w === 3 || held;
+
+    if (reduce && dose === 100) {
+      reasons.push("Toxicity requiring reduction at 100 mg/m²/day.");
+    }
+
+    if (reasons.length) {
+      return {status: "DISCONTINUATION CRITERION", reasons};
+    }
+
+    if (a <= 1.5) reasons.push("ANC has not exceeded 1.5.");
+    if (p <= 100) reasons.push("Platelets have not exceeded 100.");
+    if (w === 3 && g > 1) {
+      reasons.push("Grade 3 event has not recovered to grade ≤1.");
+    }
+
+    return {
+      status: reasons.length
+        ? "HOLD NEXT CYCLE"
+        : "NO ENTERED RECOVERY BARRIER",
+      reasons,
+      next: reduce ? dose - 50 : null
+    };
+  }
+
+  function line(text, heading = false) {
+    const element = document.createElement(heading ? "h3" : "p");
+    element.textContent = text;
+    out.append(element);
+  }
+
+  form.addEventListener("submit", event => {
+    event.preventDefault();
+    out.replaceChildren();
+    if (!form.reportValidity()) return;
+
+    const x = {
+      phase: fields.phase.value,
+      a: Number(fields.a.value),
+      p: Number(fields.p.value),
+      na: Number(fields.na.value),
+      np: Number(fields.np.value),
+      g: Number(fields.g.value),
+      w: Number(fields.w.value),
+      dose: Number(fields.dose.value),
+      held: fields.held.value === "yes",
+      recur: fields.recur.value === "yes"
+    };
+
+    if (
+      x.na > x.a || x.np > x.p || x.w < x.g ||
+      (x.phase === "adj" && x.recur && x.w < 3)
+    ) {
+      line(
+        "Check inputs: nadirs cannot exceed current counts; " +
+        "worst grade cannot be lower than current grade. " +
+        "Recurrent grade 3 requires a worst grade of at least 3."
+      );
+      return;
+    }
+
+    const result = assess(x);
+
+    if (fields.liver.value === "yes") {
+      line("PROMPT CLINICAL LIVER-INJURY REVIEW REQUIRED", true);
+      line(
+        "Do not use this tool to authorize dosing or rechallenge. " +
+        "The findings below do not resolve suspected liver injury."
+      );
+    }
+
+    line(result.status, true);
+    result.reasons.forEach(reason => line(reason));
+
+    if (result.status === "DISCONTINUATION CRITERION") {
+      line(
+        "The entered history meets a label discontinuation criterion. " +
+        "Prompt treating-oncologist review is required; " +
+        "recovered values alone do not reverse this finding."
+      );
+    } else if (x.phase === "adj") {
+      if (result.next !== null) {
+        line(
+          "Label-based next-cycle dose level after recovery and " +
+          "clinical approval: " + result.next + " mg/m²/day. " +
+          "This is one 50 mg/m² reduction, not one per abnormality."
+        );
+      } else {
+        line(
+          "No dose-reduction trigger identified in the entered criteria. " +
+          "This does not recommend escalation."
+        );
+      }
+
+      if (x.a === 1.5 || x.p === 100) {
+        line(
+          "Boundary value: this tool uses the label's next-cycle " +
+          "recovery wording (>1.5 and >100). Section 2.1 uses ≥ " +
+          "for general predose criteria. Confirm local protocol."
+        );
+      }
+    }
+
+    line(
+      "Not treatment clearance. Review all toxicity, laboratory trends, " +
+      "clinical status, and the applicable institutional protocol."
+    );
+  });
+})();
+</script>
 </main>
 
 <script>
