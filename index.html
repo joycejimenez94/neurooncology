@@ -81,6 +81,159 @@
     Educational resource for healthcare professionals.
     Does not replace clinical judgment or institutional protocols.
   </footer>
+ <section>
+  <h2>Temozolomide dose calculator</h2>
+  <p>Enter the verified BSA and select the prescribed dose level.</p>
+
+  <form id="tmz-dose-form">
+    <p>
+      <label for="tmz-bsa">Body surface area (m²)</label>
+      <input id="tmz-bsa" type="number"
+             min="0.3" max="5" step="any"
+             placeholder="For example: 1.85" required>
+    </p>
+
+    <p>
+      <label for="tmz-dose-level">Treatment / dose level</label>
+      <select id="tmz-dose-level" required>
+        <option value="">Choose a dose level</option>
+        <option value="75">
+          Concurrent chemoradiation — 75 mg/m²/day
+        </option>
+        <option value="150">
+          Adjuvant initial / reduced — 150 mg/m²/day
+        </option>
+        <option value="200">
+          Adjuvant escalated — 200 mg/m²/day
+        </option>
+        <option value="100">
+          Adjuvant reduced — 100 mg/m²/day
+        </option>
+      </select>
+    </p>
+
+    <button type="submit">Calculate dose</button>
+  </form>
+
+  <div id="tmz-dose-result" aria-live="polite"></div>
+
+  <p class="note">
+    Daily dose = BSA (m²) × selected dose level (mg/m²/day).
+    No BSA cap or capsule rounding is applied.
+  </p>
+  <p class="note">
+    Arithmetic aid only. Dose selection, escalation, reductions,
+    and treatment clearance require clinical review.
+    Verify the final dose and capsule combination with the
+    treating team and pharmacy.
+    Concurrent treatment uses interruption/discontinuation criteria
+    rather than routine dose reductions.
+  </p>
+  <p class="note">
+    No patient identifiers are needed. This calculator does not
+    save inputs or send them to a server.
+  </p>
+  <a href="https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=046a9011-3911-4d3f-a15f-fbb56d5aad56"
+     target="_blank" rel="noopener noreferrer">
+    Reference: TEMODAR prescribing information
+  </a>
+</section>
+
+<style>
+  #tmz-dose-form select {
+    width: 100%;
+    padding: 12px;
+    font: inherit;
+    color: #203f3b;
+    background: white;
+    border: 1px solid #9fb5a9;
+    border-radius: 8px;
+  }
+  #tmz-dose-form select:focus {
+    outline: 3px solid #a9cbb7;
+  }
+  #tmz-dose-result:not(:empty) {
+    margin-top: 24px;
+    padding: 20px;
+    background: #edf4ed;
+    border-radius: 12px;
+  }
+</style>
+
+<script>
+(() => {
+  const form = document.getElementById("tmz-dose-form");
+  const bsaInput = document.getElementById("tmz-bsa");
+  const level = document.getElementById("tmz-dose-level");
+  const output = document.getElementById("tmz-dose-result");
+
+  function clearResult() {
+    output.replaceChildren();
+  }
+
+  form.addEventListener("input", clearResult);
+  form.addEventListener("change", clearResult);
+
+  form.addEventListener("submit", event => {
+    event.preventDefault();
+    clearResult();
+
+    if (!form.reportValidity()) return;
+
+    const bsa = Number(bsaInput.value);
+    const doseLevel = Number(level.value);
+
+    if (
+      !Number.isFinite(bsa) || bsa < 0.3 || bsa > 5 ||
+      ![75, 100, 150, 200].includes(doseLevel)
+    ) {
+      output.textContent = "Please check your inputs.";
+      return;
+    }
+
+    const dailyDose = bsa * doseLevel;
+
+    function addLine(label, value) {
+      const paragraph = document.createElement("p");
+      const bold = document.createElement("strong");
+      bold.textContent = label + ": ";
+      paragraph.append(bold, value);
+      output.append(paragraph);
+    }
+
+    addLine("Entered BSA", bsa + " m²");
+    addLine("Selected dose level", doseLevel + " mg/m²/day");
+    addLine(
+      "Calculated daily dose",
+      dailyDose.toFixed(2) + " mg per day"
+    );
+
+    if (doseLevel === 75) {
+      addLine(
+        "Schedule",
+        "Daily during the prescribed concurrent chemoradiation course. " +
+        "Confirm duration with the treatment plan."
+      );
+    } else {
+      addLine(
+        "Schedule",
+        "Once daily on days 1–5 of a 28-day cycle."
+      );
+      addLine(
+        "Calculated total over 5 treatment days",
+        (dailyDose * 5).toFixed(2) +
+        " mg across the cycle — NOT a single dose"
+      );
+    }
+
+    addLine(
+      "Rounding",
+      "Displayed to two decimal places. No capsule rounding applied; " +
+      "confirm the final prescribed dose."
+    );
+  });
+})();
+</script>
 </main>
 
 <script>
